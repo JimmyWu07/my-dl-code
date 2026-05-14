@@ -1,3 +1,16 @@
+"""
+基于均线与风险控制的量化策略研究
+内容:
+1. 数据获取
+2. 数据清洗
+3. 特征构建
+4. 策略逻辑
+5. 回撤
+6. 风险指标
+7. 极端行情测试
+8. 可视化
+9. 策略分析
+"""
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -112,7 +125,7 @@ data = {
 # 后 50 天进入高位区间宽幅剧烈震荡，没有明确涨跌趋势。
 # 整体大起大落波动极强，包含大跌、暴涨、震荡三种典型市场形态。
 # ====================== 150天 极端数据 ======================
-
+plt.rcParams['font.sans-serif'] = ['SimHei']
 data = {
     'date': [
         '2022-01-03', '2022-01-04', '2022-01-05', '2022-01-06', '2022-01-07',
@@ -207,8 +220,24 @@ data = {
 #lengths = [len(v) for v in data.values()]
 #print("所有列长度一致?", len(set(lengths)) == 1)
 #print("各列长度:", lengths)
-
 df = pd.DataFrame(data)
+import os
+
+
+# 设定你的基础路径
+base_path = r"C:\Users\lenovo\Desktop\Quant\py"
+data_dir = os.path.join(base_path, "data")
+
+# 如果文件夹不存在则创建
+if not os.path.exists(data_dir):
+    os.makedirs(data_dir)
+
+
+# df_normal.to_csv(os.path.join(data_dir, "normal_market.csv"), index=False)
+df.to_csv(os.path.join(data_dir, "extreme_market.csv",encoding='utf-8-sig'), index=False)
+
+print(f"数据已成功保存至: {data_dir}")
+
 df['MA5'] = df['close'].rolling(5).mean()
 df['MA10'] = df['close'].rolling(10).mean()
 df['MA20'] = df['close'].rolling(20).mean()
@@ -216,7 +245,36 @@ df = df.dropna(subset=['MA5', 'MA10', 'MA20'])
 
 df['date'] = pd.to_datetime(df['date'])
 df.set_index('date', inplace=True)
+# 1. 生成金叉（买入）、死叉（卖出）信号
+# 金叉：MA5上穿MA20（前一天MA5<=MA20，当天MA5>MA20）
+df['golden_cross'] = (df['MA5'] > df['MA20']) & (df['MA5'].shift(1) <= df['MA20'].shift(1))
+# 死叉：MA5下穿MA20（前一天MA5>=MA20，当天MA5<MA20）
+df['death_cross'] = (df['MA5'] < df['MA20']) & (df['MA5'].shift(1) >= df['MA20'].shift(1))
 
+# 2. 整合信号（1=买入，-1=卖出，0=无操作）
+df['trade_signal'] = 0
+df.loc[df['golden_cross'], 'trade_signal'] = 1
+df.loc[df['death_cross'], 'trade_signal'] = -1
+
+# 连续2天MA5 > MA20，才确认金叉
+df['valid_golden_cross'] = (
+    (df['MA5'] > df['MA20']) & 
+    (df['MA5'].shift(1) > df['MA20'].shift(1)) &
+    (df['MA5'].shift(2) <= df['MA20'].shift(2))
+)
+# 金叉时成交量 > 5日均量的1.2倍
+df['vol_ma5'] = df['volume'].rolling(5).mean()
+df['valid_golden_cross'] = (
+    (df['MA5'] > df['MA20']) & 
+    (df['MA5'].shift(1) <= df['MA20'].shift(1)) &
+    (df['volume'] > 1.2 * df['vol_ma5'])
+)
+df['distance_to_ma20'] = abs(df['close'] - df['MA20']) / df['MA20']
+df['valid_golden_cross'] = (
+    (df['MA5'] > df['MA20']) & 
+    (df['MA5'].shift(1) <= df['MA20'].shift(1)) &
+    (df['distance_to_ma20'] > 0.01)  # 离均线1%以上
+)
 # -------------------------- 回测部分 --------------------------
 df['return'] = df['close'].pct_change() #计算收益率，市场收益；
 df['signal'] = 0
@@ -258,10 +316,8 @@ else:
 # ------------------- 可视化部分 -------------------
 plt.figure(figsize=(12, 6))  # 设置画布大小
 
-# 画收盘价折线
+# 画收盘价折线 五日十日二十日均线
 plt.plot(df.index, df['close'], label='close', color='blue', marker='o')
-
-# 画五日,十日，二十日均线折线
 plt.plot(df.index, df['MA5'], label='MA5', color='red', linestyle='--', linewidth=1.5)
 plt.plot(df.index, df['MA10'], label='MA10', color='orange', linestyle='-.', linewidth=1.5)
 plt.plot(df.index, df['MA20'], label='MA20', color='green', linestyle=':', linewidth=1.5)
@@ -275,7 +331,6 @@ plt.legend()  # 显示图例
 plt.grid(True, alpha=0.3)  # 显示网格线
 plt.xticks(rotation=45)  # 日期标签旋转45度，避免重叠
 plt.tight_layout()  # 自动调整布局，防止标签被截断
-
 plt.show()
 
 # 回测收益可视化
@@ -308,3 +363,26 @@ plt.tight_layout()
 plt.show()
 
 
+plt.figure(figsize=(12, 6))
+plt.plot(df.index, df['close'], label='close', color='blue', marker='.')
+plt.plot(df.index, df['MA5'], label='MA5', color='red', linestyle='--', linewidth=1.5)
+plt.plot(df.index, df['MA10'], label='MA10', color='orange', linestyle='-.', linewidth=1.5)
+plt.plot(df.index, df['MA20'], label='MA20', color='green', linestyle=':', linewidth=1.5)
+
+# 新增：标记买入/卖出信号点
+buy_points = df[df['trade_signal'] == 1]
+sell_points = df[df['trade_signal'] == -1]
+plt.scatter(buy_points.index, buy_points['close'], 
+            color='green', marker='^', s=100, label='Buy', zorder=5)  # 绿色上箭头，放大显示
+plt.scatter(sell_points.index, sell_points['close'], 
+            color='red', marker='v', s=100, label='Sell', zorder=5)   # 红色下箭头，放大显示
+
+
+plt.title('Stock Price + MA + Trade Signals', fontsize=14)
+plt.xlabel('date', fontsize=12)
+plt.ylabel('price', fontsize=12)
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
