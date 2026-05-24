@@ -27,9 +27,15 @@ if os.path.exists(csv_path):
     algo = DoubleMAStrategy(df, short_window=short_val, long_window=long_val)
     df_res = algo.generate_signals()
     df_res = algo.calculate_returns()
-    
+    trades = df_res[df_res['signal'] != 0]
+    buy_trades = trades[trades['signal'] == 1]
+    sell_trades = trades[trades['signal'] == -1]
+    st.metric("总交易次数", len(trades))
+    st.metric("买入次数", len(buy_trades))
+    st.metric("卖出次数", len(sell_trades))
+
     # --- 布局：上方显示核心指标 ---
-    col1, col2, col3,col4= st.columns(4)
+    col1, col2, col3,col4 = st.columns(4)
     col1.metric("最终累计收益", f"{df_res['cum_strategy_return'].iloc[-1]:.2f}x")
     col2.metric("年化夏普比率", f"{algo.get_performance():.2f}")
     col3.metric("测试天数", len(df_res))
