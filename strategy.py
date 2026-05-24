@@ -14,29 +14,38 @@ class DoubleMAStrategy:
         # 1. 计算均线
         self.df['MA_short'] = self.df['close'].rolling(window=self.short_window).mean()
         self.df['MA_long'] = self.df['close'].rolling(window=self.long_window).mean()
-
+        
+  
         self.df = self.df.dropna().copy()
-
-        # 2. 生成信号 (在没有空值的数据集上进行计算)
         self.df['signal'] = 0
-        self.df.loc[self.df['MA_short'] > self.df['MA_long'], 'signal'] = 1
-        self.df.loc[self.df['MA_short'] < self.df['MA_long'], 'signal'] = -1
-
-        # 进阶逻辑：只有今天交叉了才算信号
-        # 今天金叉 且 昨天不是金叉
-        self.df['position'] = (self.df['MA_short'] > self.df['MA_long']).astype(int)
-        self.df['signal'] = self.df['position'].diff() 
-        # 此时：1 代表买入，-1 代表卖出，0 代表持有或不操作
+        # 金叉
+        self.df.loc[(self.df['MA_short'] > self.df['MA_long']) & 
+                    (self.df['MA_short'].shift(1) <= self.df['MA_long'].shift(1)), 'signal'] = 1
+        # 死叉
+        self.df.loc[(self.df['MA_short'] < self.df['MA_long']) & 
+                    (self.df['MA_short'].shift(1) >= self.df['MA_long'].shift(1)), 'signal'] = -1
         
         return self.df
-        
 
     def calculate_returns(self):
-        # 3. 计算收益率
         self.df['market_return'] = self.df['close'].pct_change()
+        # 使用 signal 来生成策略收益（signal 只在交易那天非零）
         self.df['strategy_return'] = self.df['signal'].shift(1) * self.df['market_return']
+        # 但这样只有交易那天有收益，其他天为 0
         
-        # 4. 计算累计收益
+        # 生成仓位
+        self.df['position'] = 0
+        position = 0
+        for i in range(len(self.df)):
+            if self.df['signal'].iloc[i] == 1:  # 买入
+                position = 1
+            elif self.df['signal'].iloc[i] == -1:  # 卖出
+                position = 0
+            self.df.loc[self.df.index[i], 'position'] = position
+        
+        # 用仓位计算收益
+        self.df['strategy_return'] = self.df['position'].shift(1) * self.df['market_return']
+        
         self.df['cum_market_return'] = (1 + self.df['market_return']).cumprod()
         self.df['cum_strategy_return'] = (1 + self.df['strategy_return']).cumprod()
         # 5. 添加手续费 后期再加滑点

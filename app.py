@@ -29,7 +29,7 @@ if os.path.exists(csv_path):
     df_res = algo.calculate_returns()
     
     # --- 布局：上方显示核心指标 ---
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3,col4= st.columns(4)
     col1.metric("最终累计收益", f"{df_res['cum_strategy_return'].iloc[-1]:.2f}x")
     col2.metric("年化夏普比率", f"{algo.get_performance():.2f}")
     col3.metric("测试天数", len(df_res))
@@ -62,3 +62,9 @@ if os.path.exists(csv_path):
 
 else:
     st.error(f"找不到文件: {csv_path}")
+
+ 
+if st.checkbox("查看交易明细"):
+    trades = df_res[df_res['signal'] != 0][['date', 'close', 'MA_short', 'MA_long', 'signal']]
+    st.write(trades)   
+    
