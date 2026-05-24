@@ -9,12 +9,12 @@ from strategy import DoubleMAStrategy
 st.set_page_config(page_title="量化运维可视化平台", layout="wide")
 
 st.title("📈 量化策略交互回测平台")
-st.sidebar.markdown(f"**运行人:241733402_吴鸿鸣**")
+st.sidebar.markdown(f"Jimy")
 
 # --- 侧边栏：参数调节 ---
 st.sidebar.header("策略参数设置")
 target_file = st.sidebar.selectbox("选择数据集", ["normal_market.csv", "extreme_market.csv"])
-short_val = st.sidebar.slider("短期均线窗口", 2, 30, STRATEGY_PARAMS['short_window'])
+short_val = st.sidebar.slider("短期均线窗口", 2, 10, STRATEGY_PARAMS['short_window'])
 long_val = st.sidebar.slider("长期均线窗口", 10, 100, STRATEGY_PARAMS['long_window'])
 
 # --- 数据读取 ---
@@ -33,6 +33,7 @@ if os.path.exists(csv_path):
     col1.metric("最终累计收益", f"{df_res['cum_strategy_return'].iloc[-1]:.2f}x")
     col2.metric("年化夏普比率", f"{algo.get_performance():.2f}")
     col3.metric("测试天数", len(df_res))
+    col4.metric("最大回撤", f"{algo.get_max_drawdown():.2%}")
 
     # --- 图表 1：双均线回测图 ---
     st.subheader("双均线交易信号可视化")
