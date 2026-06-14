@@ -5,10 +5,11 @@ class DoubleMAStrategy:
     """
     双均线策略封装类
     """
-    def __init__(self, df, short_window=5, long_window=20):
+    def __init__(self, df, short_window=5, long_window=20, adx_period=14):
         self.df = df.copy()
         self.short_window = short_window
         self.long_window = long_window
+        self.adx_period = adx_period
 
     def generate_signals(self, adx_threshold=12):
         # 1. 计算均线
@@ -55,7 +56,8 @@ class DoubleMAStrategy:
         self.df['cum_strategy_return'] = (1 + self.df['strategy_return']).cumprod()
         return self.df
 
-    def calculate_adx(self, period=14):
+    def calculate_adx(self):
+        period = self.adx_period
         high = self.df['high']
         low = self.df['low']
         close = self.df['close']

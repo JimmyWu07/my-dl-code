@@ -28,13 +28,14 @@ def main():
         df = pd.read_csv(csv_path, encoding=STRATEGY_PARAMS['encoding'])
         
         algo = DoubleMAStrategy(
-            df, 
-            short_window=STRATEGY_PARAMS['short_window'], 
-            long_window=STRATEGY_PARAMS['long_window']
+            df,
+            short_window=STRATEGY_PARAMS['short_window'],
+            long_window=STRATEGY_PARAMS['long_window'],
+            adx_period=STRATEGY_PARAMS['adx_period']
         )
-        
-        df_result = algo.generate_signals()
-        df_result = algo.calculate_returns()
+
+        df_result = algo.generate_signals(adx_threshold=STRATEGY_PARAMS['adx_threshold'])
+        df_result = algo.calculate_returns(commission=STRATEGY_PARAMS['commission'])
         
         print("="*40)
         print(f"量化运维监控 - 运行人: 241733402_吴鸿鸣")
