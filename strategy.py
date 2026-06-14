@@ -10,24 +10,30 @@ class DoubleMAStrategy:
         self.short_window = short_window
         self.long_window = long_window
 
-    def generate_signals(self):
+    def generate_signals(self, adx_threshold=25):
         # 1. 计算均线
         self.df['MA_short'] = self.df['close'].rolling(window=self.short_window).mean()
         self.df['MA_long'] = self.df['close'].rolling(window=self.long_window).mean()
 
-        # 2. 删除NaN
+        # 2. 计算ADX趋势强度
+        self.df['ADX'] = self.calculate_adx()
+
+        # 3. 删除NaN（均线和ADX都会产生NaN）
         self.df = self.df.dropna().copy()
 
-        # 3. 生成交易信号
+        # 4. 生成交易信号（ADX过滤：只在趋势强时交易）
         self.df['signal'] = 0
-        # 金叉：今天 MA_short > MA_long，昨天 MA_short <= MA_long
-        self.df.loc[(self.df['MA_short'] > self.df['MA_long']) & 
-                    (self.df['MA_short'].shift(1) <= self.df['MA_long'].shift(1)), 'signal'] = 1
-        # 死叉：今天 MA_short < MA_long，昨天 MA_short >= MA_long
-        self.df.loc[(self.df['MA_short'] < self.df['MA_long']) & 
-                    (self.df['MA_short'].shift(1) >= self.df['MA_long'].shift(1)), 'signal'] = -1
-    
-        # 4. 生成仓位列
+        strong_trend = self.df['ADX'] > adx_threshold
+        # 金叉 + ADX确认
+        self.df.loc[(self.df['MA_short'] > self.df['MA_long']) &
+                    (self.df['MA_short'].shift(1) <= self.df['MA_long'].shift(1)) &
+                    strong_trend, 'signal'] = 1
+        # 死叉 + ADX确认
+        self.df.loc[(self.df['MA_short'] < self.df['MA_long']) &
+                    (self.df['MA_short'].shift(1) >= self.df['MA_long'].shift(1)) &
+                    strong_trend, 'signal'] = -1
+
+        # 5. 生成仓位列
         self.df['position'] = 0
         position = 0
         for i in range(len(self.df)):
